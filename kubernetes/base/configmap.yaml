@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: stocker-config
+  labels:
+    app: stocker-api
+data:
+  environment: "production"
+  log_level: "INFO"
+  api_rate_limit: "120"
+  use_redis_rate_limiting: "true"
+  api_docs_enabled: "true"
+  api_versioning_enabled: "true"
+  default_version: "1"
+  supported_versions: "1,2"
+  ssl_enabled: "true"

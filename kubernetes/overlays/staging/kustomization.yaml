@@ -1,0 +1,32 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: stocker-staging
+
+resources:
+  - ../../base
+
+patchesStrategicMerge:
+  - patches/deployment-patch.yaml
+  - patches/configmap-patch.yaml
+
+configMapGenerator:
+  - name: stocker-config
+    behavior: merge
+    literals:
+      - environment=staging
+      - log_level=DEBUG
+      - api_rate_limit=120
+      - use_redis_rate_limiting=true
+      - api_docs_enabled=true
+      - api_versioning_enabled=true
+      - default_version=1
+      - supported_versions=1,2
+      - ssl_enabled=true
+      - docker_registry=ghcr.io/stockerpro
+      - image_tag=develop
+
+images:
+  - name: ${DOCKER_REGISTRY}/stocker-api
+    newName: ghcr.io/stockerpro/stocker-pro-api
+    newTag: develop

@@ -1,0 +1,88 @@
+# Backup CronJob for STOCKER Pro API
+# This configuration automatically backs up the database on a schedule
+
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: stocker-db-backup
+  labels:
+    app: stocker-db-backup
+spec:
+  schedule: "0 2 * * *"  # Run daily at 2:00 AM
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: stocker-db-backup
+        spec:
+          containers:
+          - name: backup
+            image: postgres:14-alpine
+            imagePullPolicy: IfNotPresent
+            command:
+            - /bin/sh
+            - -c
+            - |
+              # Set variables
+              BACKUP_FILE="/backups/stocker-db-$(date +%Y%m%d-%H%M%S).sql.gz"
+              
+              # Create backup
+              echo "Creating backup: $BACKUP_FILE"
+              pg_dump -h stocker-db -U $POSTGRES_USER $POSTGRES_DB | gzip > $BACKUP_FILE
+              
+              # Verify backup
+              if [ $? -eq 0 ] && [ -s $BACKUP_FILE ]; then
+                echo "Backup completed successfully"
+                
+                # Clean up old backups (keep last 7)
+                cd /backups && ls -t *.sql.gz | tail -n +8 | xargs --no-run-if-empty rm
+                
+                # List remaining backups
+                echo "Remaining backups:"
+                ls -lh /backups
+              else
+                echo "Backup failed"
+                exit 1
+              fi
+            env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: stocker-secrets
+                  key: postgres-user
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: stocker-secrets
+                  key: postgres-password
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: stocker-secrets
+                  key: postgres-db
+            volumeMounts:
+            - name: backup-volume
+              mountPath: /backups
+          restartPolicy: OnFailure
+          volumes:
+          - name: backup-volume
+            persistentVolumeClaim:
+              claimName: db-backups
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: db-backups
+  labels:
+    app: stocker-db-backup
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: standard

@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: stocker-config
+data:
+  api_title: "STOCKER Pro API - Staging"
+  api_description: "STOCKER Pro API for stock market data analysis and portfolio management (Staging Environment)"
+  api_server_url: "https://staging-api.stockerpro.example.com"
+  api_cors_origins: "https://staging.stockerpro.example.com,http://localhost:3000"
+  metrics_enabled: "true"
+  tracing_enabled: "true"
+  cache_type: "redis"
+  cache_ttl: "300"
+  health_check_interval: "30"

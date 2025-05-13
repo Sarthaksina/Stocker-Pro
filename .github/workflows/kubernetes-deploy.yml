@@ -1,0 +1,125 @@
+name: Kubernetes Deployment
+
+on:
+  push:
+    branches:
+      - main  # Production deployment
+      - develop  # Staging deployment
+  workflow_dispatch:  # Manual trigger
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+jobs:
+  deploy:
+    name: Deploy to Kubernetes
+    runs-on: ubuntu-latest
+    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
+      
+      - name: Set up Kustomize
+        run: |
+          curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+          sudo mv kustomize /usr/local/bin
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+      
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --name ${{ secrets.EKS_CLUSTER_NAME }} --region ${{ secrets.AWS_REGION }}
+      
+      - name: Set environment variables
+        run: |
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "ENVIRONMENT=production" >> $GITHUB_ENV
+            echo "NAMESPACE=stocker-production" >> $GITHUB_ENV
+            echo "IMAGE_TAG=main-${{ github.sha }}" >> $GITHUB_ENV
+          else
+            echo "ENVIRONMENT=staging" >> $GITHUB_ENV
+            echo "NAMESPACE=stocker-staging" >> $GITHUB_ENV
+            echo "IMAGE_TAG=develop-${{ github.sha }}" >> $GITHUB_ENV
+          fi
+      
+      - name: Create namespace if not exists
+        run: |
+          kubectl get namespace ${{ env.NAMESPACE }} || kubectl create namespace ${{ env.NAMESPACE }}
+      
+      - name: Create secrets
+        run: |
+          # Create a temporary secrets file from environment variables
+          cat <<EOF > ./kubernetes/overlays/${{ env.ENVIRONMENT }}/.env.temp
+          postgres-user=${{ secrets.POSTGRES_USER }}
+          postgres-password=${{ secrets.POSTGRES_PASSWORD }}
+          postgres-db=${{ secrets.POSTGRES_DB }}
+          jwt-secret=${{ secrets.JWT_SECRET }}
+          api-key=${{ secrets.API_KEY }}
+          EOF
+      
+      - name: Deploy with Kustomize
+        run: |
+          cd kubernetes/overlays/${{ env.ENVIRONMENT }}
+          kustomize edit set image ghcr.io/stockerpro/stocker-pro-api:develop=ghcr.io/stockerpro/stocker-pro-api:${{ env.IMAGE_TAG }}
+          kustomize build | kubectl apply -f -
+          rm -f .env.temp
+      
+      - name: Verify deployment
+        run: |
+          kubectl rollout status deployment/stocker-api -n ${{ env.NAMESPACE }} --timeout=300s
+      
+      - name: Run database migrations
+        run: |
+          # Create a job to run migrations
+          cat <<EOF | kubectl apply -f -
+          apiVersion: batch/v1
+          kind: Job
+          metadata:
+            name: stocker-migrations-${{ github.sha }}
+            namespace: ${{ env.NAMESPACE }}
+          spec:
+            template:
+              spec:
+                containers:
+                - name: migrations
+                  image: ghcr.io/stockerpro/stocker-pro-api:${{ env.IMAGE_TAG }}
+                  command: ["python", "-m", "alembic", "upgrade", "head"]
+                  env:
+                  - name: STOCKER_DATABASE_URL
+                    valueFrom:
+                      secretKeyRef:
+                        name: stocker-secrets
+                        key: database-url
+                restartPolicy: Never
+            backoffLimit: 3
+          EOF
+          
+          # Wait for the migration job to complete
+          kubectl wait --for=condition=complete --timeout=120s job/stocker-migrations-${{ github.sha }} -n ${{ env.NAMESPACE }}
+      
+      - name: Notify deployment status
+        if: always()
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          SLACK_CHANNEL: deployments
+          SLACK_COLOR: ${{ job.status }}
+          SLACK_TITLE: "Deployment to ${{ env.ENVIRONMENT }}"
+          SLACK_MESSAGE: "Deployment of STOCKER Pro API to ${{ env.ENVIRONMENT }} ${{ job.status == 'success' && 'succeeded' || 'failed' }}!"

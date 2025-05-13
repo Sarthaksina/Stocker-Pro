@@ -1,0 +1,60 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - deployment.yaml
+  - service.yaml
+  - ingress.yaml
+  - configmap.yaml
+  - secrets.yaml
+  - database-deployment.yaml
+  - redis-deployment.yaml
+  - persistent-volumes.yaml
+  - prometheus-config.yaml
+  - prometheus-deployment.yaml
+  - grafana-deployment.yaml
+  - loki-deployment.yaml
+  - promtail-deployment.yaml
+  - alertmanager-deployment.yaml
+  - network-policies.yaml
+  - resource-quotas.yaml
+  - horizontal-pod-autoscaler.yaml
+  - pod-disruption-budget.yaml
+  - backup-cronjob.yaml
+
+commonLabels:
+  app: stocker-api
+  environment: production
+
+configMapGenerator:
+  - name: stocker-config
+    behavior: merge
+    literals:
+      - environment=production
+
+secretGenerator:
+  - name: stocker-secrets
+    behavior: merge
+    envs:
+      - .env.production  # This file should be created in the overlays directory
+  - name: grafana-admin
+    behavior: merge
+    literals:
+      - admin-user=admin
+      - admin-password=admin  # Should be changed in production
+
+vars:
+  - name: DOCKER_REGISTRY
+    objref:
+      kind: ConfigMap
+      name: stocker-config
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.docker_registry
+  - name: IMAGE_TAG
+    objref:
+      kind: ConfigMap
+      name: stocker-config
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.image_tag

@@ -1,0 +1,38 @@
+# Pod Disruption Budget for STOCKER Pro API
+# This configuration ensures high availability during voluntary disruptions like node upgrades
+
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: stocker-api-pdb
+  labels:
+    app: stocker-api
+spec:
+  minAvailable: 1  # At least 1 pod must be available during voluntary disruptions
+  selector:
+    matchLabels:
+      app: stocker-api
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: stocker-db-pdb
+  labels:
+    app: stocker-db
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: stocker-db
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: stocker-redis-pdb
+  labels:
+    app: stocker-redis
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: stocker-redis

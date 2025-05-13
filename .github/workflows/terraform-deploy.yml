@@ -1,0 +1,131 @@
+name: Terraform Infrastructure Deployment
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'terraform/**'
+  pull_request:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'terraform/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+      action:
+        description: 'Action to perform'
+        required: true
+        default: 'plan'
+        type: choice
+        options:
+          - plan
+          - apply
+          - destroy
+
+jobs:
+  terraform:
+    name: 'Terraform'
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'production' || 'staging') }}
+    
+    defaults:
+      run:
+        working-directory: terraform
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.4.6
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+      
+      - name: Terraform Init
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ secrets.TERRAFORM_STATE_BUCKET }}" \
+            -backend-config="key=stocker-pro/${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'production' || 'staging') }}/terraform.tfstate" \
+            -backend-config="region=${{ secrets.AWS_REGION }}" \
+            -backend-config="dynamodb_table=${{ secrets.TERRAFORM_LOCK_TABLE }}"
+      
+      - name: Terraform Format
+        run: terraform fmt -check
+        continue-on-error: true
+      
+      - name: Terraform Validate
+        run: terraform validate
+      
+      - name: Terraform Plan
+        if: github.event.inputs.action != 'destroy'
+        id: plan
+        run: |
+          terraform plan \
+            -var-file="${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'production' || 'staging') }}.tfvars" \
+            -var="db_password=${{ secrets.DB_PASSWORD }}" \
+            -out=tfplan
+        continue-on-error: true
+      
+      - name: Terraform Plan Status
+        if: steps.plan.outcome == 'failure'
+        run: exit 1
+      
+      - name: Terraform Apply
+        if: (github.event_name == 'push' || github.event.inputs.action == 'apply') && github.event.inputs.action != 'destroy'
+        run: |
+          terraform apply tfplan
+      
+      - name: Terraform Destroy Plan
+        if: github.event.inputs.action == 'destroy'
+        id: destroy-plan
+        run: |
+          terraform plan \
+            -var-file="${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'production' || 'staging') }}.tfvars" \
+            -var="db_password=${{ secrets.DB_PASSWORD }}" \
+            -destroy \
+            -out=tfplan
+        continue-on-error: true
+      
+      - name: Terraform Destroy
+        if: github.event.inputs.action == 'destroy'
+        run: |
+          terraform apply tfplan
+      
+      - name: Update kubeconfig
+        if: (github.event_name == 'push' || github.event.inputs.action == 'apply') && github.event.inputs.action != 'destroy'
+        run: |
+          aws eks update-kubeconfig --name stocker-pro-${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'production' || 'staging') }} --region ${{ secrets.AWS_REGION }}
+      
+      - name: Apply Kubernetes manifests
+        if: (github.event_name == 'push' || github.event.inputs.action == 'apply') && github.event.inputs.action != 'destroy'
+        run: |
+          cd ../kubernetes/overlays/${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'production' || 'staging') }}
+          kubectl apply -k .
+      
+      - name: Notify Slack
+        uses: rtCamp/action-slack-notify@v2
+        if: always()
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          SLACK_CHANNEL: infrastructure
+          SLACK_COLOR: ${{ job.status }}
+          SLACK_TITLE: "Terraform ${{ github.event.inputs.action || 'plan/apply' }} to ${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'production' || 'staging') }}"
+          SLACK_MESSAGE: "Terraform ${{ github.event.inputs.action || 'plan/apply' }} for STOCKER Pro ${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'production' || 'staging') }} ${{ job.status == 'success' && 'succeeded' || 'failed' }}!"

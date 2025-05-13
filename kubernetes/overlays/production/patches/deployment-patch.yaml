@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: stocker-api
+spec:
+  replicas: 3
+  template:
+    spec:
+      containers:
+      - name: stocker-api
+        resources:
+          requests:
+            cpu: 200m
+            memory: 512Mi
+          limits:
+            cpu: 500m
+            memory: 1Gi
+        env:
+        - name: STOCKER_ENVIRONMENT
+          value: "production"
+        - name: STOCKER_LOG_LEVEL
+          value: "INFO"
+        - name: STOCKER_API_WORKERS
+          value: "4"

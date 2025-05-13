@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: stocker-config
+data:
+  api_title: "STOCKER Pro API"
+  api_description: "STOCKER Pro API for stock market data analysis and portfolio management"
+  api_server_url: "https://api.stockerpro.example.com"
+  api_cors_origins: "https://stockerpro.example.com"
+  metrics_enabled: "true"
+  tracing_enabled: "true"
+  cache_type: "redis"
+  cache_ttl: "600"
+  health_check_interval: "60"
