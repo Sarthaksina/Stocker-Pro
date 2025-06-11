@@ -180,37 +180,3 @@ class ValidationError(APIError):
         if errors:
             details["errors"] = errors
         super().__init__(message=message, code="VALIDATION_ERROR", status_code=422, details=details, **kwargs)
-
-
-# Intelligence Exceptions
-class IntelligenceError(StockerException):
-    """Base exception for intelligence-related errors."""
-    def __init__(self, message: str = "Intelligence error", **kwargs):
-        super().__init__(message=message, code="INTELLIGENCE_ERROR", **kwargs)
-
-
-class LLMError(IntelligenceError):
-    """Exception raised when there's an issue with LLM operations."""
-    def __init__(self, message: str = "LLM error", **kwargs):
-        super().__init__(message=message, code="LLM_ERROR", **kwargs)
-
-
-class RAGError(IntelligenceError):
-    """Exception raised when there's an issue with RAG operations."""
-    def __init__(self, message: str = "RAG error", **kwargs):
-        super().__init__(message=message, code="RAG_ERROR", **kwargs)
-
-
-class VectorStoreError(IntelligenceError):
-    """Exception raised when there's an issue with vector store operations."""
-    def __init__(self, message: str = "Vector store error", **kwargs):
-        super().__init__(message=message, code="VECTOR_STORE_ERROR", **kwargs)
-
-
-class AgentError(IntelligenceError):
-    """Exception raised when there's an issue with agent operations."""
-    def __init__(self, message: str = "Agent error", agent_type: Optional[str] = None, **kwargs):
-        details = kwargs.pop("details", {}) or {}
-        if agent_type:
-            details["agent_type"] = agent_type
-        super().__init__(message=message, code="AGENT_ERROR", details=details, **kwargs)

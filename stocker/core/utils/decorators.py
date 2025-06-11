@@ -15,9 +15,6 @@ from stocker.core.exceptions import StockerException
 # Type variable for function return type
 T = TypeVar('T')
 
-# Simple in-memory cache for the cache_result decorator
-_CACHE: Dict[str, Dict[str, Any]] = {}
-
 
 def timer(func: Callable[..., T]) -> Callable[..., T]:
     """Decorator to measure and log the execution time of a function.
@@ -94,62 +91,6 @@ def retry(
             
             # This should never happen, but just in case
             raise StockerException(f"All {max_attempts} attempts for {func.__name__} failed")
-        
-        return wrapper
-    
-    return decorator
-
-
-def cache_result(
-    ttl: Optional[int] = 3600,  # Time to live in seconds (1 hour default)
-    max_size: int = 100,  # Maximum number of cached results
-    key_func: Optional[Callable[..., str]] = None  # Function to generate cache key
-) -> Callable[[Callable[..., T]], Callable[..., T]]:
-    """Decorator to cache function results in memory.
-    
-    Args:
-        ttl: Time to live for cached results (in seconds, None for no expiration)
-        max_size: Maximum number of cached results
-        key_func: Function to generate cache key (default: based on args and kwargs)
-        
-    Returns:
-        Decorator function
-    """
-    def decorator(func: Callable[..., T]) -> Callable[..., T]:
-        cache_name = f"{func.__module__}.{func.__name__}"
-        
-        if cache_name not in _CACHE:
-            _CACHE[cache_name] = {}
-        
-        @functools.wraps(func)
-        def wrapper(*args: Any, **kwargs: Any) -> T:
-            # Generate cache key
-            if key_func:
-                cache_key = key_func(*args, **kwargs)
-            else:
-                # Default key based on args and kwargs
-                arg_str = ",".join(str(arg) for arg in args)
-                kwarg_str = ",".join(f"{k}={v}" for k, v in sorted(kwargs.items()))
-                cache_key = f"{arg_str}|{kwarg_str}"
-            
-            cache = _CACHE[cache_name]
-            
-            # Check if result is in cache and not expired
-            if cache_key in cache:
-                result, timestamp = cache[cache_key]
-                if ttl is None or datetime.now() - timestamp < timedelta(seconds=ttl):
-                    return result
-            
-            # If cache is full, remove oldest entry
-            if len(cache) >= max_size:
-                oldest_key = min(cache.keys(), key=lambda k: cache[k][1])
-                del cache[oldest_key]
-            
-            # Call function and cache result
-            result = func(*args, **kwargs)
-            cache[cache_key] = (result, datetime.now())
-            
-            return result
         
         return wrapper
     

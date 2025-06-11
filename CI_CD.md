@@ -11,7 +11,7 @@ The STOCKER Pro CI/CD pipeline automates testing, building, and deploying the AP
 
 ## CI Workflow
 
-The CI workflow is defined in `.github/workflows/ci.yml` and includes the following stages:
+The CI workflow is defined in `.github/workflows/continuous-integration.yml` and includes the following stages:
 
 ### Testing Stage
 
@@ -118,6 +118,7 @@ kubectl apply -f kubernetes/api-deployment.yaml -n stocker-production
 kubectl apply -f kubernetes/api-service.yaml -n stocker-production
 kubectl apply -f kubernetes/api-ingress.yaml -n stocker-production
 ```
+Kubernetes resources are now deployed using Kustomize. Refer to the Kubernetes deployment section in `DEPLOYMENT.MD` for more details.
 
 ## Workflow
 
@@ -157,7 +158,7 @@ kubectl get deployments -n stocker-production
 
 - Check the GitHub Actions logs in the "Actions" tab
 - Verify that all tests are passing locally
-- Ensure all dependencies are correctly specified in requirements.txt
+- Ensure all dependencies are correctly specified in `pyproject.toml`.
 
 #### CD Issues
 

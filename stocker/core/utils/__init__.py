@@ -22,9 +22,10 @@ from stocker.core.utils.validators import (
 from stocker.core.utils.decorators import (
     timer,
     retry,
-    cache_result,
     log_execution
 )
+
+from stocker.core.utils.cache_decorators import cached, cached_property
 
 __all__ = [
     # Datetime utilities
@@ -44,6 +45,7 @@ __all__ = [
     # Decorator utilities
     "timer",
     "retry",
-    "cache_result",
-    "log_execution"
+    "log_execution",
+    "cached",
+    "cached_property"
 ]

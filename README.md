@@ -71,13 +71,16 @@ python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 ```
 
-3. Install dependencies:
+3. Install Poetry (if you don't have it already):
+   Refer to the official Poetry documentation for installation instructions: https://python-poetry.org/docs/#installation
+
+4. Install project dependencies using Poetry:
 
 ```bash
-pip install -r requirements.txt
+poetry install
 ```
 
-4. Set up environment variables:
+5. Set up environment variables:
 
 ```bash
 cp .env.example .env
@@ -114,7 +117,7 @@ Once the API is running, you can access the documentation at:
 
 ### Code Quality
 
-STOCKER Pro uses several tools to maintain code quality:
+STOCKER Pro uses several tools to maintain code quality. These tools are included in the project's development dependencies and will be installed when you run `poetry install` (ensure your Poetry configuration includes dev dependencies, or run `poetry install --with dev` if they are in a separate group and not installed by default):
 
 - **Black**: Code formatting
 - **isort**: Import sorting
@@ -123,7 +126,7 @@ STOCKER Pro uses several tools to maintain code quality:
 - **Bandit**: Security scanning
 - **pre-commit**: Automated checks before commits
 
-Set up pre-commit hooks:
+Set up pre-commit hooks (after installing dependencies with Poetry):
 
 ```bash
 pre-commit install
@@ -159,6 +162,7 @@ For more details, see [CI_CD.md](CI_CD.md).
 ```
 stocker-pro/
 ├── stocker/                 # Main package
+│   ├── app.py               # Main application (placeholder)
 │   ├── core/                # Core functionality
 │   │   ├── config/          # Configuration management
 │   │   ├── exceptions.py    # Exception hierarchy
@@ -166,20 +170,17 @@ stocker-pro/
 │   │   └── utils/           # Utility functions
 │   ├── domain/              # Domain models
 │   ├── infrastructure/      # External systems integration
-│   │   ├── database/        # Database models and repositories
-│   │   └── integrations/    # External API clients
+│   │   └── database/        # Database models and repositories
 │   ├── services/            # Business logic services
 │   └── interfaces/          # User interfaces
-│       ├── api/             # FastAPI application
-│       └── cli/             # Command-line interface
+│       └── api/             # FastAPI application
 ├── tests/                   # Test suite
-├── static/                  # Static files
 ├── kubernetes/              # Kubernetes manifests
+├── migrations/              # Database migrations (env.py, script.py.mako, versions/)
 ├── .github/                 # GitHub configuration
 │   └── workflows/           # GitHub Actions workflows
-├── requirements.txt         # Dependencies
-├── pyproject.toml          # Project configuration
-├── setup.py                # Package setup
+├── alembic.ini              # Alembic configuration
+├── pyproject.toml          # Project configuration (including dependencies)
 ├── Dockerfile              # Docker configuration
 ├── docker-compose.yml      # Docker Compose configuration
 ├── PLANNING.md             # Architecture and planning
